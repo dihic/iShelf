@@ -8,6 +8,7 @@
 #include "iso15693.h"
 #include "canonchip.h"
 #include "VCNL40x0.h"
+#include "delay.h"
 
 using namespace std;
 
@@ -18,11 +19,16 @@ using namespace std;
 #define G2_LED 	 PORT0,7
 #define VCNL_INT PORT2,8
 
-#define SYNC_LIVE				 0x01ff
-#define SYNC_RFID				 0x0100
 #define OP_SET_INDICATOR 0x8002
+#define SYNC_GOTCHA			0x0180
+#define SYNC_RFID				0x0100
+#define SYNC_LIVE				0x01ff
 
 #define MEM_BUFSIZE 0x100
+
+#define RFID_TIME_COUNT    	10
+#define RFID_TIME_INTERVAL 	50
+#define LED_INTERVAL 				500
 
 __align(16) uint8_t MemBuffer[MEM_BUFSIZE];
 
@@ -39,9 +45,14 @@ static uint8_t UIDlast[8];
 
 static uint8_t cardData[32] = {0x44, 0x49, 0x48 ,0x45}; // "DIHE"
 
-static bool Connected = true;
-static bool syncTriggered = false;
-static CAN_ODENTRY syncEntry;
+volatile bool syncTriggered = false;
+volatile CAN_ODENTRY syncEntry;
+
+volatile bool Connected = true;
+volatile bool Registered = false;		// Registered by host
+volatile bool ForceSync = false;
+volatile bool Gotcha = true;
+volatile bool RfidTimeup = true;	// for power saving
 
 uint8_t Command, InterruptStatus;
 uint32_t ProxiValue, AmbiValue;
@@ -49,8 +60,6 @@ uint32_t ProxiValue, AmbiValue;
 bool VcnlConnected = false;
 
 volatile uint8_t LED_CONTROL = 0x00;
-
-CAN_ODENTRY rfidEntry;
 
 void Setup()
 {
@@ -122,45 +131,75 @@ void Setup()
 //	VCNL40x0::SetHighThreshold (AverageProxiValue+100); // set upper threshold for interrupt
 }
 
-void RfidUpdate()
-{
-	//static bool first = true;
+bool UpdateRfid()
+{	
+	static uint8_t UIDlast[8];
+	//static uint8_t found = 0;
+	static uint32_t lostCount = 0;
 	
-//	GPIOSetValue(R1_LED, 0);
-//	GPIOSetValue(G1_LED, 0);
-//	GPIOSetValue(R2_LED, 0);
-//	GPIOSetValue(G2_LED, 0);
+	bool result = false;
+	uint8_t suc = 0;
+	uint8_t failCount;
 	
 	Trf796xTurnRfOn();
 	DELAY(2000);
-	uint8_t found = Iso15693FindTag();
-	if (memcmp(UID, UIDlast, 8) != 0)
+	if (Iso15693FindTag())
 	{
-		if (found)
+		lostCount = 0;
+		if (memcmp(UID, UIDlast, 8) != 0)
 		{
+			result = true;
 			memcpy(UIDlast, UID, 8);
 			memcpy(MemBuffer+1, UID, 8);
-			Iso15693ReadSingleBlockWithAddress(0, UID, cardData+4);
+
+			failCount = 0;
+			do
+			{
+				suc=Iso15693ReadSingleBlockWithAddress(0, UID, cardData+4);
+				DELAY(1000);
+			} while (suc && ++failCount<10);
+			
 			if (memcmp(cardData+4, cardData, 4)==0)
 			{
 				MemBuffer[0]= 0x02;
-				Iso15693ReadMultipleBlockWithAddress(1, 4, UID, (uint8_t *)MemBuffer+0x10);
+				failCount = 0;
+				do
+				{
+					suc = Iso15693ReadMultipleBlockWithAddress(1, 4, UID, (uint8_t *)MemBuffer+0x10);
+					DELAY(1000);
+				} while (suc && ++failCount<10);
 			}
 			else
-				MemBuffer[0]= 0x01;
+			{
+				if (failCount>=10)
+				{
+					memset(MemBuffer, 0, 9);
+					memset(UIDlast, 0, 8);
+				}
+				else
+				{
+					MemBuffer[0] = 1;
+					memcpy(MemBuffer+1, UID, 8);
+				}
+			}
 		}
-		else
+	}
+	else
+	{
+		if (++lostCount>RFID_TIME_COUNT)
 		{
-			memset(MemBuffer, 0, 9);
-			memset(UIDlast, 0, 8);
+			lostCount = RFID_TIME_COUNT;
+			if (MemBuffer[0] != 0)
+			{
+				result = true;
+				memset(MemBuffer, 0, 9);
+				memset(UIDlast, 0, 8);
+			}
 		}
-//		if (first)
-//			first = false;
-//		else
-			syncTriggered = true;
 	}
 	Trf796xTurnRfOff();
 	DELAY(2000);
+	return result;
 }
 
 struct CanResponse
@@ -263,17 +302,16 @@ extern "C"
 
 		switch(index)
 		{
-			case SYNC_LIVE:
-				if (Connected)
-					Connected = false;
-				else
-				{
-					Connected = true;
-					syncTriggered = true;
-				}
+			case SYNC_GOTCHA:
+				Gotcha = true;
 				break;
 			case SYNC_RFID:
-				syncTriggered = true;
+				ForceSync = true;
+				break;
+			case SYNC_LIVE:
+				Connected=!Connected;
+				if (Connected)
+					Registered = true;
 				break;
 			default:
 				break;
@@ -283,20 +321,40 @@ extern "C"
 
 	void TIMER32_0_IRQHandler()
 	{
-		static uint32_t counter = 0;
+		static uint32_t counter1 = 0;
+		static uint32_t counter2 = 0;
+		static uint32_t counter3 = 0;
 		
 		if ( LPC_TMR32B0->IR & 0x01 )
 		{
 			LPC_TMR32B0->IR = 1;			/* clear interrupt flag */
 			
-			if (++counter > 5)
+			if (!RfidTimeup)
 			{
-				counter=0;
-				LedUpdate();
+				if (counter2++ >= RFID_TIME_INTERVAL)
+				{
+					RfidTimeup =true;
+					counter2 = 0;
+				}				
 			}
 			
-			if (Connected==false)
-				CANEXHeartbeat(STATE_OPERATIONAL);
+			if (counter3++ >= LED_INTERVAL)
+			{
+				counter3=0;
+				LedUpdate();
+			}
+		
+			if (counter1++>=HeartbeatInterval)
+			{
+				counter1=0;
+				if (Connected)
+				{
+					if (Registered && !Gotcha)
+						syncTriggered = true;
+				}
+				else
+					CANEXHeartbeat(STATE_OPERATIONAL);
+			}
 		}
 	}
 	
@@ -306,55 +364,13 @@ extern "C"
 		if (GPIOIntStatus(VCNL_INT))
 		{
 			GPIOIntClear(VCNL_INT);
-//			VCNL40x0::ReadInterruptStatus(&status);
-//			VCNL40x0::SetInterruptStatus(status);
-//			VCNL40x0::ReadCommandRegister (&Command); // read command register
-//			if (Command & COMMAND_MASK_PROX_DATA_READY) 
-//			{
-//				VCNL40x0::ReadProxiValue (&ProxiValue); // read prox value
-//			}
-//			// ambi value ready for using
-//			if (Command & COMMAND_MASK_AMBI_DATA_READY) 
-//			{
-//				VCNL40x0::ReadAmbiValue (&AmbiValue); // read ambi value
-//			}
-//			
-//			if (AmbiValue<1000 && ProxiValue>10000)
-//				GPIOSetValue(POS_LED, 1);
-//			else
-//				GPIOSetValue(POS_LED, 0);
 		}
 	}
 }
 
-int main()
+void UpdateIndicator()
 {
-	SystemCoreClockUpdate();
-	GPIOInit();
-	Setup();
-	
-//	LED_CONTROL = 0x88;
-//	LedUpdate();
-	
-	CANInit(500);
-	CANEXReceiverEvent = CanexReceived;
-	CANTEXTriggerSyncEvent = CanexSyncTrigger;
-	
-	init_timer32(0, TIME_INTERVAL(10));		//	10Hz
-	DELAY(10);
-	enable_timer32(0);
-	
-	Trf796xCommunicationSetup();
-	Trf796xInitialSettings();
-	//DELAY(10000);
-	
-	while(1)
-	{
-		RfidUpdate();
-		
-		if (VcnlConnected)
-		{
-			// read interrupt status register
+	// read interrupt status register
 			VCNL40x0::ReadInterruptStatus (&InterruptStatus);
 	//		// check interrupt status for High Threshold
 	//		if (InterruptStatus & INTERRUPT_MASK_STATUS_THRES_HI) 
@@ -380,12 +396,47 @@ int main()
 			}
 			
 			GPIOSetValue(POS_LED, AmbiValue<100 && ProxiValue>10000);
+}
+
+int main()
+{
+	SystemCoreClockUpdate();
+	GPIOInit();
+	Setup();
+	
+	//Test codes
+//	LED_CONTROL = 0xB8;
+//	LedUpdate();
+	
+	CANInit(500);
+	CANEXReceiverEvent = CanexReceived;
+	CANTEXTriggerSyncEvent = CanexSyncTrigger;
+	
+	Trf796xCommunicationSetup();
+	Trf796xInitialSettings();
+	//DELAY(10000);
+	
+	init_timer32(0, TIME_INTERVAL(1000));		//	1000Hz
+	DELAY(10);
+	enable_timer32(0);
+	
+	while(1)
+	{
+		if (RfidTimeup)
+		{
+			RfidTimeup = false;
+			bool updated = UpdateRfid();
+			if (Registered && (updated || ForceSync))
+				Gotcha = false;
 		}
+		
+		if (VcnlConnected)
+			UpdateIndicator();
 		
 		if (syncTriggered)
 		{
 			syncTriggered = false;
-			CANEXBroadcast(&syncEntry);
+			CANEXBroadcast(const_cast<CAN_ODENTRY *>(&syncEntry));
 		}
 	}
 }

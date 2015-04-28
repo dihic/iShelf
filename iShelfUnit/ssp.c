@@ -22,6 +22,7 @@
 #include "LPC11xx.h"			/* LPC11xx Peripheral Registers */
 #include "gpio.h"
 #include "ssp.h"
+#include "delay.h"
 
 /* statistics of all the interrupts */
 volatile uint32_t interruptRxStat0 = 0;

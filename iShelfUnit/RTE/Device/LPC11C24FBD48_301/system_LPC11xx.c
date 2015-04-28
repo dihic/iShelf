@@ -26,15 +26,6 @@
 #include <stdint.h>
 #include "LPC11xx.h"
 
-
-__asm void SysCtlDelay(unsigned long ulCount)
-{
-	
-    subs    r0, #1;
-		nop;
-    bne     SysCtlDelay;
-    bx      lr;
-}
 /*
 //-------- <<< Use Configuration Wizard in Context Menu >>> ------------------
 */
@@ -274,7 +265,7 @@ void SystemCoreClockUpdate (void)            /* Get Core Clock Frequency      */
     case 14: wdt_osc = 3200000; break;
     case 15: wdt_osc = 3400000; break;
   }
-  wdt_osc /= (((LPC_SYSCON->WDTOSCCTRL & 0x1F) << 1) + 2);
+  wdt_osc /= ((LPC_SYSCON->WDTOSCCTRL & 0x1F) << 1) + 2;
  
   switch (LPC_SYSCON->MAINCLKSEL & 0x03) {
     case 0:                             /* Internal RC oscillator             */
@@ -371,5 +362,4 @@ void SystemInit (void) {
   LPC_SYSCON->SYSAHBCLKDIV  = SYSAHBCLKDIV_Val;
 #endif
 
-	LPC_SYSCON->SYSAHBCLKCTRL |= (1<<16);
 }

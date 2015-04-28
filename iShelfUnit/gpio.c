@@ -24,7 +24,8 @@ volatile uint32_t p3_1_counter  = 0;
 *****************************************************************************/
 void GPIOInit( void )
 {
-	//int i;
+	//Enable IOCON
+	LPC_SYSCON->SYSAHBCLKCTRL |= (1<<16);
   /* Enable AHB clock to the GPIO domain. */
   LPC_SYSCON->SYSAHBCLKCTRL |= (1<<6);
 

@@ -11,18 +11,6 @@
 #include "gpio.h"
 #include <stdint.h>
 
-//#ifndef MCU_DELAY
-//#define MCU_DELAY
-
-//__ASM void SysCtlDelay(unsigned long ulCount)
-//{
-//    subs    r0, #1;
-//    bne     SysCtlDelay;
-//    bx      lr;
-//}
-//#define DELAY(us) SysCtlDelay((us)*(SystemCoreClock/3000000))
-//#endif
-
 //===============================================================
 
 #define PIN_RFID_IRQ 		PORT3,0
