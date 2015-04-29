@@ -24,9 +24,9 @@ using namespace std;
 #define SYNC_RFID				0x0100
 #define SYNC_LIVE				0x01ff
 
-#define MEM_BUFSIZE 0x100
+#define MEM_BUFSIZE 0x200
 
-#define RFID_TIME_COUNT    	10
+#define RFID_TIME_COUNT    	3
 #define RFID_TIME_INTERVAL 	50
 #define LED_INTERVAL 				500
 
@@ -43,7 +43,7 @@ extern uint8_t UID[8];
 
 static uint8_t UIDlast[8];
 
-static uint8_t cardData[32] = {0x44, 0x49, 0x48 ,0x45}; // "DIHE"
+static uint8_t cardData[32] = {0x44, 0x49, 0x48 ,0x4D}; // "DIHM"
 
 volatile bool syncTriggered = false;
 volatile CAN_ODENTRY syncEntry;
@@ -131,6 +131,20 @@ void Setup()
 //	VCNL40x0::SetHighThreshold (AverageProxiValue+100); // set upper threshold for interrupt
 }
 
+#define INDEX_DATA 0x100
+#define INDEX_PRESID 9
+
+void GetPresId()
+{
+	std::uint8_t len = 0;
+	std::uint8_t *p = MemBuffer+INDEX_DATA;
+	while (len<20 && p[len]!=0)
+		++len;
+	MemBuffer[INDEX_PRESID] = len;
+	memcpy(MemBuffer+INDEX_PRESID+1, p, len);
+	syncEntry.entrytype_len = 10+len;
+}
+
 bool UpdateRfid()
 {	
 	static uint8_t UIDlast[8];
@@ -165,12 +179,16 @@ bool UpdateRfid()
 				failCount = 0;
 				do
 				{
-					suc = Iso15693ReadMultipleBlockWithAddress(1, 4, UID, (uint8_t *)MemBuffer+0x10);
-					DELAY(1000);
+					suc = Iso15693ReadMultipleBlockWithAddress(1, 27, UID, (uint8_t *)MemBuffer+INDEX_DATA);
+					if (suc)
+						GetPresId();
+					else
+						DELAY(1000);
 				} while (suc && ++failCount<10);
 			}
 			else
 			{
+				syncEntry.entrytype_len = 9;
 				if (failCount>=10)
 				{
 					memset(MemBuffer, 0, 9);
@@ -192,6 +210,7 @@ bool UpdateRfid()
 			if (MemBuffer[0] != 0)
 			{
 				result = true;
+				syncEntry.entrytype_len = 9;
 				memset(MemBuffer, 0, 9);
 				memset(UIDlast, 0, 8);
 			}
@@ -414,11 +433,12 @@ int main()
 	
 	Trf796xCommunicationSetup();
 	Trf796xInitialSettings();
-	//DELAY(10000);
 	
 	init_timer32(0, TIME_INTERVAL(1000));		//	1000Hz
 	DELAY(10);
 	enable_timer32(0);
+	
+	DELAY(1000);
 	
 	while(1)
 	{
