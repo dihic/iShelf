@@ -34,7 +34,7 @@ void SystemHeartbeat(void const *argument)
 	HAL_GPIO_TogglePin(STATUS_PIN);
 	
 	//Send a heart beat per 10s
-	if ((ethEngine.get()!=NULL) && ++hbcount>20)
+	if ((ethEngine.get()!=NULL) && ++hbcount>20)		// 20*500ms = 10s/hb
 	{
 		hbcount = 0;
  		ethEngine->SendHeartBeat();
@@ -60,8 +60,8 @@ void HeartbeatArrival(uint16_t sourceId, CANExtended::DeviceState state)
 #endif
 			unit.reset(new ShelfUnit(*CanEx, sourceId));
 			CanEx->AddDevice(unit);
-			unit->ReadCommandResponse.bind(ethEngine.get(), &NetworkEngine::DeviceReadResponse);
-			unit->WriteCommandResponse.bind(ethEngine.get(), &NetworkEngine::DeviceWriteResponse);
+//			unit->ReadCommandResponse.bind(ethEngine.get(), &NetworkEngine::DeviceReadResponse);
+//			unit->WriteCommandResponse.bind(ethEngine.get(), &NetworkEngine::DeviceWriteResponse);
 			unitManager.Add(sourceId, unit);
 		}
 	}
@@ -82,22 +82,20 @@ static void UpdateUnits(void const *argument)  //Prevent missing status
 {
 	osDelay(2000);
 	std::map<std::uint16_t, boost::shared_ptr<ShelfUnit> > &unitList = unitManager.GetList();
-//	while(1)
-//	{
-		//CanEx->SyncAll(SYNC_DATA, CANExtended::Trigger);
-		for(UnitManager::UnitIterator it = unitList.begin(); it!= unitList.end(); ++it)
+	//CanEx->SyncAll(SYNC_DATA, CANExtended::Trigger);
+	for(UnitManager::UnitIterator it = unitList.begin(); it!= unitList.end(); ++it)
+	{
+		if (!it->second->IsBusy())
 		{
-			if (!it->second->IsBusy())
-			{
-				CanEx->Sync(it->second->DeviceId, SYNC_DATA, CANExtended::Trigger);
-				osDelay(20);
-			}
+			CanEx->Sync(it->second->DeviceId, SYNC_DATA, CANExtended::Trigger);
+			osDelay(20);
 		}
+	}
 	while(1)
 	{
-		osDelay(250);
 		if (ethEngine.get()!=NULL)
 			ethEngine->InventoryRfid();
+		osDelay(100);
 	}
 }
 osThreadDef(UpdateUnits, osPriorityNormal, 1, 0);
