@@ -29,7 +29,7 @@ namespace IntelliShelf
 		static const uint8_t ME[0x14]={0x14, 0x00, 0x00, 0x00, 0x12, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x00,
 																	 0x01, 0x02, 0x01, 0x01, 			// Fixed 0x01, iShelf 0x02, PD 0x01, 0x01 Pharmacy Products
 																	 0x00, 0x00, 0x00, 0x00, 0x00};
-		tcp.SendData(HeartBeatCode, ME, 0x14);
+		tcp.SendData(CommandWhoAmI, ME, 0x14);
 	}
 	
 	void NetworkEngine::InventoryRfid()
@@ -49,6 +49,9 @@ namespace IntelliShelf
 				case ShelfUnit::CardArrival:
 					if (it->second->CardChanged())
 					{
+#ifdef DEBUG_PRINT
+						cout<<"Node "<<(it->second->DeviceId & 0xff)<<" Card Arrival"<<endl;
+#endif
 						if (manager.GetLEDState(it->second->GetCardId(), led))
 							it->second->SetIndicator(led);
 						else
@@ -57,17 +60,21 @@ namespace IntelliShelf
 								SendRequest(it->second);
 							it->second->SetIndicator(IndicatorDirection::Both, IndicatorColor::Red, IndicatorState::LightOn);
 						}
+						it->second->UpdateCard();
 					}
 					if (needReport)
+					{
 						SendRequest(it->second);
+					}
 					break;
 				case ShelfUnit::CardLeft:
 					if (it->second->CardChanged())
 					{
 #ifdef DEBUG_PRINT
-						cout<<"Node "<<it->second->DeviceId<<" Card left"<<endl;
+						cout<<"Node "<<(it->second->DeviceId & 0xff)<<" Card Left"<<endl;
 #endif
 						it->second->IndicatorOff();
+						it->second->UpdateCard();
 					}
 					break;
 				default:
@@ -88,7 +95,7 @@ namespace IntelliShelf
 		boost::shared_ptr<Basket> basket(new Basket);
 		basket->RFID = unit->GetCardId();
 #ifdef DEBUG_PRINT
-		cout<<"Node "<<unit->DeviceId<<" New card ID: "+basket->RFID<<endl;
+		cout<<"Node "<<(unit->DeviceId & 0xff)<<" New card ID: "+basket->RFID<<endl;
 #endif
 		boost::shared_ptr<uint8_t[]> buffer = BSON::Bson::Serialize(basket, bufferSize);
 		if (buffer.get()!=NULL && bufferSize>0)
@@ -176,6 +183,9 @@ namespace IntelliShelf
 		//osMutexWait(mutex_id, osWaitForever);
 		switch (code)
 		{
+			case CommandWhoAmI:
+				WhoAmI();
+				break;
 			case CommandBasketPlacementAck:
 				BSON::Bson::Deserialize(stream, status);
 				if (status.get() == NULL)

@@ -15,7 +15,8 @@ namespace IntelliShelf
     CommandInventoryRequest   = 4,
     CommandInventory					= 5,
     CommandTimeout						= 6,
-		CommandIndicatorTest			= 7,					
+		CommandIndicatorTest			= 7,
+		CommandWhoAmI				 						= 0xff,		
 	};
 	
 	DECLARE_CLASS(IndicatorTest)
