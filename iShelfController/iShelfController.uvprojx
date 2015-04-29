@@ -459,9 +459,9 @@
               <FilePath>.\System.c</FilePath>
             </File>
             <File>
-              <FileName>StorageUnit.cpp</FileName>
+              <FileName>ShelfUnit.cpp</FileName>
               <FileType>8</FileType>
-              <FilePath>.\StorageUnit.cpp</FilePath>
+              <FilePath>.\ShelfUnit.cpp</FilePath>
             </File>
           </Files>
         </Group>
@@ -1002,9 +1002,9 @@
               <FilePath>.\System.c</FilePath>
             </File>
             <File>
-              <FileName>StorageUnit.cpp</FileName>
+              <FileName>ShelfUnit.cpp</FileName>
               <FileType>8</FileType>
-              <FilePath>.\StorageUnit.cpp</FilePath>
+              <FilePath>.\ShelfUnit.cpp</FilePath>
             </File>
           </Files>
         </Group>

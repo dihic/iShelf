@@ -3,26 +3,26 @@
 
 #include "TcpClient.h"
 #include "CommStructures.h"
-#include "StorageUnit.h"
+#include "UnitManager.h"
 #include <boost/type_traits.hpp>
 #include <boost/smart_ptr.hpp>
 #include <boost/make_shared.hpp>
 
-namespace IntelliStorage
+namespace IntelliShelf
 {
 	class NetworkEngine
 	{
 		private:
 			TcpClient tcp;
-			std::map<std::uint16_t, boost::shared_ptr<StorageUnit> > &unitList;
+			UnitManager &manager;
 			void TcpClientCommandArrival(boost::shared_ptr<std::uint8_t[]> payload, std::size_t size);
 			void WhoAmI();
-			void SendRfidData(boost::shared_ptr<StorageUnit> unit);
 		public:
 
-			NetworkEngine(const std::uint8_t *endpoint, std::map<std::uint16_t, boost::shared_ptr<StorageUnit> > &list);
+			NetworkEngine(const std::uint8_t *endpoint, UnitManager &um);
 			~NetworkEngine() {}
 			void SendHeartBeat();
+			void SendRequest(boost::shared_ptr<ShelfUnit> unit);
 			void InventoryRfid();
 			void Process();
 			void Connection();

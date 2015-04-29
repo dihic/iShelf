@@ -17,7 +17,7 @@
 #include "FastDelegate.h"
 
 using namespace fastdelegate;
-using namespace IntelliStorage;
+using namespace IntelliShelf;
 using namespace std;
 
 boost::shared_ptr<CANExtended::CanEx> CanEx;
@@ -52,13 +52,13 @@ void HeartbeatArrival(uint16_t sourceId, CANExtended::DeviceState state)
 	CanEx->Sync(sourceId, SYNC_LIVE, CANExtended::Trigger); //Confirm & Stop
 	if (sourceId & 0x100)
 	{
-		boost::shared_ptr<StorageUnit> unit = unitManager.FindUnit(sourceId);
+		boost::shared_ptr<ShelfUnit> unit = unitManager.FindUnit(sourceId);
 		if (unit.get() == NULL)
 		{
 #ifdef DEBUG_PRINT
 			cout<<"#"<<++dc<<" DeviceID: "<<(sourceId & 0xff)<<" Added"<<endl;
 #endif
-			unit.reset(new StorageUnit(*CanEx, sourceId));
+			unit.reset(new ShelfUnit(*CanEx, sourceId));
 			CanEx->AddDevice(unit);
 			unit->ReadCommandResponse.bind(ethEngine.get(), &NetworkEngine::DeviceReadResponse);
 			unit->WriteCommandResponse.bind(ethEngine.get(), &NetworkEngine::DeviceWriteResponse);
@@ -81,7 +81,7 @@ osThreadDef(UpdateWorker, osPriorityNormal, 1, 0);
 static void UpdateUnits(void const *argument)  //Prevent missing status
 {
 	osDelay(2000);
-	std::map<std::uint16_t, boost::shared_ptr<StorageUnit> > &unitList = unitManager.GetList();
+	std::map<std::uint16_t, boost::shared_ptr<ShelfUnit> > &unitList = unitManager.GetList();
 //	while(1)
 //	{
 		//CanEx->SyncAll(SYNC_DATA, CANExtended::Trigger);
@@ -125,7 +125,7 @@ int main()
 	//Initialize Ethernet interface
 	net_initialize();
 	
-	ethEngine.reset(new NetworkEngine(ethConfig->GetIpConfig(IpConfigGetServiceEnpoint), unitManager.GetList()));
+	ethEngine.reset(new NetworkEngine(ethConfig->GetIpConfig(IpConfigGetServiceEnpoint), unitManager));
 	ethConfig->ServiceEndpointChangedEvent.bind(ethEngine.get(),&NetworkEngine::ChangeServiceEndpoint);
 //	unitManager.OnSendData.bind(ethEngine.get(),&NetworkEngine::SendRfidData);
 	

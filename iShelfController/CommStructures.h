@@ -3,17 +3,30 @@
 
 #include "TypeInfoBase.h"
 #include <cstdint>
+#include <string>
 
-namespace IntelliStorage
+namespace IntelliShelf
 {
 	enum CodeType
 	{
-		HeartBeatCode = 0x00,          //class HeartBeat
-		QueryNodeId = 0x04,     //class NodeList
-		RfidDataCode = 0x0E,        //class RfidData
-		CommandResponse = 0x14,
-		QueryRfid = 0x15,
-		WhoAmICode = 0xff,
+		HeartBeatCode 						= 1,          //class HeartBeat
+		CommandBasketPlacement 		= 2,
+    CommandBasketPlacementAck = 3,
+    CommandInventoryRequest   = 4,
+    CommandInventory					= 5,
+    CommandTimeout						= 6,
+		CommandIndicatorTest			= 7,					
+	};
+	
+	DECLARE_CLASS(IndicatorTest)
+	{
+		public:
+			IndicatorTest()
+			{
+				REGISTER_FIELD(test);
+			}
+			virtual ~IndicatorTest() {}
+			int test;
 	};
 
 	DECLARE_CLASS(HeartBeat)
@@ -27,58 +40,52 @@ namespace IntelliStorage
 			std::uint64_t times;
 	};
 
-	DECLARE_CLASS(NodeQuery)
+	DECLARE_CLASS(Basket)
 	{
 		public:
-			NodeQuery()
+			Basket()
 			{
-				REGISTER_FIELD(NodeId);
+				REGISTER_FIELD(RFID);
 			}
-			virtual ~NodeQuery() {}
-			int NodeId;
-	};
-
-	DECLARE_CLASS(NodeList)
-	{
-		public:
-			NodeList()
-			{
-				REGISTER_FIELD(NodeIds);
-			}
-			virtual ~NodeList() {}
-			Array<int> NodeIds;
-	};
-
-	DECLARE_CLASS(RfidDataBson)
-	{
-		public:
-			RfidDataBson()
-			{
-				REGISTER_FIELD(NodeId);
-				REGISTER_FIELD(State);
-				REGISTER_FIELD(CardId);
-				REGISTER_FIELD(PresId);
-			}
-			virtual ~RfidDataBson() {}
-			int NodeId;
-			int State;
-			std::string CardId;
-			std::string PresId;
+			virtual ~Basket() {}
+			std::string RFID;
 	};
 	
-	DECLARE_CLASS(CommandResult)
+	DECLARE_CLASS(BasketStatus)
 	{
 		public:
-			CommandResult()
+			BasketStatus()
 			{
-				REGISTER_FIELD(NodeId);
-				REGISTER_FIELD(Command);
-				REGISTER_FIELD(Result);
+				REGISTER_FIELD(RFID);
+				REGISTER_FIELD(status);
 			}
-			virtual ~CommandResult() {}
-			int NodeId;
-			int Command;
-			bool Result;
+			virtual ~BasketStatus() {}
+			std::string RFID;
+			int status;
+	};
+
+	DECLARE_CLASS(InventoryRequest)
+	{
+		public:
+			InventoryRequest()
+			{
+				REGISTER_FIELD(list);
+				REGISTER_FIELD(position);
+			}
+			virtual ~InventoryRequest() {}
+			Array<std::string> list;
+			int position;
+	};
+
+	DECLARE_CLASS(Inventory)
+	{
+		public:
+			Inventory()
+			{
+				REGISTER_FIELD(list);
+			}
+			virtual ~Inventory() {}
+			Array<BasketStatus> list;
 	};
 	
 	class CommStructures

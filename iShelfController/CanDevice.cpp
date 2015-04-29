@@ -4,7 +4,7 @@
 
 using namespace std;
 
-namespace IntelliStorage
+namespace IntelliShelf
 {
 	
 	int32_t CanDevice::SyncSignalId = 1;

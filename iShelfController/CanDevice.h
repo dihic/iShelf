@@ -9,7 +9,7 @@
 
 using namespace fastdelegate;
 
-namespace IntelliStorage
+namespace IntelliShelf
 {
 	class CanDevice;
 	

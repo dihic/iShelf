@@ -1,14 +1,14 @@
-#include "StorageUnit.h"
+#include "ShelfUnit.h"
 #include "System.h"
 #include "stm32f4xx_hal_conf.h" 
 #include <cstring>
 
 using namespace std;
 
-namespace IntelliStorage
+namespace IntelliShelf
 {
 
-	StorageUnit::StorageUnit(CANExtended::CanEx &ex, uint16_t id)
+	ShelfUnit::ShelfUnit(CANExtended::CanEx &ex, uint16_t id)
 		:	CanDevice(ex, id), lastCardType(0), cardChanged(false)
 	{
 		cardState = 0;
@@ -16,7 +16,7 @@ namespace IntelliStorage
 		presId.clear();
 	}
 
-	void StorageUnit::UpdateCard()
+	void ShelfUnit::UpdateCard()
 	{
 		cardChanged = false;
 		if (cardState == CardLeft)
@@ -26,7 +26,7 @@ namespace IntelliStorage
 		}
 	}
 	
-	string StorageUnit::GenerateId(const uint8_t *id, size_t len)
+	string ShelfUnit::GenerateId(const uint8_t *id, size_t len)
 	{
 		string result;
 		char temp;
@@ -42,14 +42,33 @@ namespace IntelliStorage
 		return result;
 	}
 	
-	void StorageUnit::SetNotice(uint8_t level)
+	void ShelfUnit::SetIndicator(std::uint8_t data)
 	{
-		boost::shared_ptr<std::uint8_t[]> data = boost::make_shared<std::uint8_t[]>(1);
-		data[0]=level;
-		WriteAttribute(DeviceAttribute::Notice, data, 1);
+		ledState = data;
+		boost::shared_ptr<std::uint8_t[]> buf = boost::make_shared<std::uint8_t[]>(1);
+		buf[0] = data;
+		WriteAttribute(DeviceAttribute::Indicator, buf, 1); 
 	}
 
-	void StorageUnit::ProcessRecievedEvent(boost::shared_ptr<CANExtended::OdEntry> entry)
+	
+	void ShelfUnit::SetIndicator(std::uint8_t dir, std::uint8_t color, std::uint8_t status)
+	{
+		uint8_t led;
+		if (dir == IndicatorDirection::Both)
+			led = ((color | status) << 4) | ( color | status);
+		else
+			led = (color | status) << dir;
+		SetIndicator(led);
+	}
+	
+	void ShelfUnit::IndicatorOff()
+	{
+		boost::shared_ptr<std::uint8_t[]> buf = boost::make_shared<std::uint8_t[]>(1);
+		buf[0] = ledState = 0;
+		WriteAttribute(DeviceAttribute::Indicator, buf, 1); 
+	}
+
+	void ShelfUnit::ProcessRecievedEvent(boost::shared_ptr<CANExtended::OdEntry> entry)
 	{
 		CanDevice::ProcessRecievedEvent(entry);
 		//Notice device that host has got the process data

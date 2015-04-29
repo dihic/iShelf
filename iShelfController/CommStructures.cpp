@@ -1,20 +1,22 @@
 #include "CommStructures.h"
 
-namespace IntelliStorage
+namespace IntelliShelf
 {
 	CLAIM_CLASS(HeartBeat);
-	CLAIM_CLASS(NodeQuery);
-	CLAIM_CLASS(NodeList);
-	CLAIM_CLASS(RfidDataBson);
-	CLAIM_CLASS(CommandResult);
+	CLAIM_CLASS(Basket);
+	CLAIM_CLASS(BasketStatus);
+	CLAIM_CLASS(InventoryRequest);
+	CLAIM_CLASS(Inventory);
+	CLAIM_CLASS(IndicatorTest);
 
 	void CommStructures::Register()
 	{
 		REGISTER_CLASS(HeartBeat);
-		REGISTER_CLASS(NodeQuery);
-		REGISTER_CLASS(NodeList);
-		REGISTER_CLASS(RfidDataBson);
-		REGISTER_CLASS(CommandResult);
+		REGISTER_CLASS(Basket);
+		REGISTER_CLASS(BasketStatus);
+		REGISTER_CLASS(InventoryRequest);
+		REGISTER_CLASS(Inventory);
+		REGISTER_CLASS(IndicatorTest);
 	}
 }
 	

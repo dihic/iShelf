@@ -6,10 +6,10 @@
 
 using namespace std;
 
-namespace IntelliStorage
+namespace IntelliShelf
 {	
-	NetworkEngine::NetworkEngine(const std::uint8_t *endpoint, map<uint16_t, boost::shared_ptr<StorageUnit> > &list)
-		:tcp(endpoint),unitList(list)
+	NetworkEngine::NetworkEngine(const std::uint8_t *endpoint, UnitManager &um)
+		:tcp(endpoint), manager(um)
 	{
 		tcp.CommandArrivalEvent.bind(this, &NetworkEngine::TcpClientCommandArrival);
 	}
@@ -27,7 +27,7 @@ namespace IntelliStorage
 	void NetworkEngine::WhoAmI()
 	{
 		static const uint8_t ME[0x14]={0x14, 0x00, 0x00, 0x00, 0x12, 0x74, 0x69, 0x6d, 0x65, 0x73, 0x00,
-																	 0x03, 0x01, 0x02, 0x01, 			// Fixed 0x01, iShelf 0x02, TCM 0x02, 0x01 Pharmacy Products
+																	 0x01, 0x02, 0x01, 0x01, 			// Fixed 0x01, iShelf 0x02, PD 0x01, 0x01 Pharmacy Products
 																	 0x00, 0x00, 0x00, 0x00, 0x00};
 		tcp.SendData(HeartBeatCode, ME, 0x14);
 	}
@@ -35,41 +35,64 @@ namespace IntelliStorage
 	void NetworkEngine::InventoryRfid()
 	{
 		static bool needReport = true;
-		if (!tcp.IsConnected())
-		{
-			needReport = true;
-			return;
-		}
 		
-		for (map<uint16_t, boost::shared_ptr<StorageUnit> >::iterator it = unitList.begin(); 
-				 it!= unitList.end(); ++it)
+		if (!tcp.IsConnected())
+			needReport = true;
+		
+		uint8_t led;
+		
+		std::map<std::uint16_t, boost::shared_ptr<ShelfUnit> > unitList = manager.GetList();
+		for (UnitManager::UnitIterator it = unitList.begin(); it!= unitList.end(); ++it)
 		{
-			if (needReport)
+			switch (it->second->GetCardState())
 			{
-				if (it->second->GetCardState() != StorageUnit::CardArrival)
-					continue;
+				case ShelfUnit::CardArrival:
+					if (it->second->CardChanged())
+					{
+						if (manager.GetLEDState(it->second->GetCardId(), led))
+							it->second->SetIndicator(led);
+						else
+						{
+							if (!needReport)
+								SendRequest(it->second);
+							it->second->SetIndicator(IndicatorDirection::Both, IndicatorColor::Red, IndicatorState::LightOn);
+						}
+					}
+					if (needReport)
+						SendRequest(it->second);
+					break;
+				case ShelfUnit::CardLeft:
+					if (it->second->CardChanged())
+					{
+#ifdef DEBUG_PRINT
+						cout<<"Node "<<it->second->DeviceId<<" Card left"<<endl;
+#endif
+						it->second->IndicatorOff();
+					}
+					break;
+				default:
+					break;
 			}
-			else if (!it->second->CardChanged())
-				continue;
-			SendRfidData(it->second);
 		}
-		needReport = false;
+		if (needReport && tcp.IsConnected())
+			needReport = false;
 	}
 	
-	void NetworkEngine::SendRfidData(boost::shared_ptr<StorageUnit> unit)
+	void NetworkEngine::SendRequest(boost::shared_ptr<ShelfUnit> unit)
 	{
+		if (!tcp.IsConnected())
+			return;
 		if (unit.get() == NULL)
 			return;
 		size_t bufferSize = 0;
-		boost::shared_ptr<RfidDataBson> rfidBson(new RfidDataBson);
-		rfidBson->NodeId = unit->DeviceId;
-		rfidBson->State = unit->GetCardState();
-		rfidBson->PresId = unit->GetPresId();
-		rfidBson->CardId = unit->GetCardId();
-		boost::shared_ptr<uint8_t[]> buffer = BSON::Bson::Serialize(rfidBson, bufferSize);
-		unit->UpdateCard();
+		boost::shared_ptr<Basket> basket(new Basket);
+		basket->RFID = unit->GetCardId();
+#ifdef DEBUG_PRINT
+		cout<<"Node "<<unit->DeviceId<<" New card ID: "+basket->RFID<<endl;
+#endif
+		boost::shared_ptr<uint8_t[]> buffer = BSON::Bson::Serialize(basket, bufferSize);
 		if (buffer.get()!=NULL && bufferSize>0)
-			tcp.SendData(RfidDataCode, buffer.get(), bufferSize);
+			tcp.SendData(CommandBasketPlacement, buffer.get(), bufferSize);
 	}
 	
 	void NetworkEngine::Process()
@@ -79,24 +102,24 @@ namespace IntelliStorage
 	
 	void NetworkEngine::DeviceWriteResponse(CanDevice &device,std::uint16_t attr, bool result)
 	{
-		boost::shared_ptr<CommandResult> response(new CommandResult);
-		response->NodeId = device.DeviceId;
-		response->Result = result;
-		
-		switch (attr)
-		{
-			case DeviceAttribute::Notice:
-				response->Command = RfidDataCode;
-				break;
-			default:
-				return;
-		}
-		
-		boost::shared_ptr<uint8_t[]> buffer;
-		size_t bufferSize = 0;
-		buffer = BSON::Bson::Serialize(response, bufferSize);
-		if (buffer.get()!=NULL && bufferSize>0)
-			tcp.SendData(CommandResponse, buffer.get(), bufferSize);
+//		boost::shared_ptr<CommandResult> response(new CommandResult);
+//		response->NodeId = device.DeviceId;
+//		response->Result = result;
+//		
+//		switch (attr)
+//		{
+//			case DeviceAttribute::Notice:
+//				response->Command = RfidDataCode;
+//				break;
+//			default:
+//				return;
+//		}
+//		
+//		boost::shared_ptr<uint8_t[]> buffer;
+//		size_t bufferSize = 0;
+//		buffer = BSON::Bson::Serialize(response, bufferSize);
+//		if (buffer.get()!=NULL && bufferSize>0)
+//			tcp.SendData(CommandResponse, buffer.get(), bufferSize);
 	}
 	
 	void NetworkEngine::DeviceReadResponse(CanDevice &device, std::uint16_t attr, const boost::shared_ptr<std::uint8_t[]> &data, std::size_t size)
@@ -130,82 +153,105 @@ namespace IntelliStorage
 	
 	void NetworkEngine::TcpClientCommandArrival(boost::shared_ptr<std::uint8_t[]> payload, std::size_t size)
 	{
-		CodeType code = (CodeType)payload[0];
-		
 		boost::shared_ptr<uint8_t[]> buffer;
 		size_t bufferSize = 0;
 		
-		boost::shared_ptr<NodeQuery> 								nodeQuery;
-		boost::shared_ptr<NodeList> 								nodeList;
-		boost::shared_ptr<CommandResult>  					response;
-		boost::shared_ptr<RfidDataBson> 						rfidBson;
-
-		map<uint16_t, boost::shared_ptr<StorageUnit> >::iterator it;
+		boost::shared_ptr<BasketStatus> 						status;
+		boost::shared_ptr<InventoryRequest> 				request;
+		boost::shared_ptr<Inventory>								ack;
+		boost::shared_ptr<IndicatorTest>						test;
 		
+		CodeType code = (CodeType)payload[0];
 		boost::shared_ptr<MemStream> stream(new MemStream(payload, size, 1));
 		
+		uint8_t side;
+		int i;
+		bool found;
+		string cardIdString;
 		
-		int id;
-		bool found = false;
+		std::map<std::uint16_t, boost::shared_ptr<ShelfUnit> > unitList;
+		UnitManager::UnitIterator it;
+		boost::shared_ptr<ShelfUnit> unit;
+		
+		//osMutexWait(mutex_id, osWaitForever);
 		switch (code)
 		{
-			case QueryNodeId:
-				nodeList.reset(new NodeList);
-				for(it = unitList.begin(); it != unitList.end(); ++it)
-				{
-					id = it->first;
-					nodeList->NodeIds.Add(id);
-				}
-				buffer = BSON::Bson::Serialize(nodeList, bufferSize);
-				if (buffer.get()!=NULL && bufferSize>0)
-					tcp.SendData(code, buffer.get(), bufferSize);
+			case CommandBasketPlacementAck:
+				BSON::Bson::Deserialize(stream, status);
+				if (status.get() == NULL)
+					return;
 				
-//				for (it = unitList.begin(); it!= unitList.end(); ++it)
-//				{
-//					if (it->second->GetCardState() != StorageUnit::CardArrival)
-//						continue;
-//					SendRfidData(it->second);
-//				}
-				break;
-			case QueryRfid:
-				BSON::Bson::Deserialize(stream, nodeQuery);
-				if (nodeQuery.get()!=NULL)
+				if (status->status == 0) //Corrected card
+					manager.ClearLEDState(status->RFID);
+				else
 				{
-					it = unitList.find(nodeQuery->NodeId);
-					if (it != unitList.end())
-						SendRfidData(it->second);
+					//Show warning or fail signal
+					unit = manager.FindUnit(status->RFID);
+					if (unit.get()!=NULL)
+						//Red LED blinking on both sides
+						unit->SetIndicator(IndicatorDirection::Both, IndicatorColor::Red,
+															 IndicatorState::LightOn | IndicatorState::Blink);
 				}
-			case WhoAmICode:
-				WhoAmI();
 				break;
-			case RfidDataCode:
-				BSON::Bson::Deserialize(stream, rfidBson);
-				if (rfidBson.get()!=NULL)
+			case CommandInventoryRequest:
+				BSON::Bson::Deserialize(stream, request);
+				if (request.get() == NULL)
+					break;
+				side = request->position == 0
+								? IndicatorDirection::Left
+								: (request->position == 1
+										? IndicatorDirection::Right
+										: IndicatorDirection::NA);
+			
+				if (side != IndicatorDirection::NA)
+					manager.RemoveSide(side);
+				ack.reset(new Inventory);
+				for (i = 0; i< request->list.Count(); ++i)
 				{
-					for(it = unitList.begin(); it != unitList.end(); ++it)
-						if (rfidBson->PresId.compare(it->second->GetPresId())==0)
-						{
-							found = true;
-							break;
-						}
-					response.reset(new CommandResult);
-					response->Command = RfidDataCode;
-					if (found)
-					{
-						it->second->SetNotice(rfidBson->State);
-						response->NodeId = it->first;
-						response->Result = true;
-					}
+					cardIdString = request->list[i];
+					if (side == IndicatorDirection::NA) //If clear
+						found = manager.RemoveLEDState(cardIdString, false);
 					else
-					{
-						response->NodeId = 0;
-						response->Result = false;
-					}
-					buffer = BSON::Bson::Serialize(response, bufferSize);
-					if (buffer.get()!=NULL && bufferSize>0)
-						tcp.SendData(CommandResponse, buffer.get(), bufferSize);
+						//Green LED blinking on one side
+						found = manager.SetLEDState(cardIdString, side, IndicatorColor::Green,
+																					IndicatorState::LightOn | IndicatorState::Blink);
+					status.reset(new BasketStatus);
+					status->RFID = cardIdString;
+					status->status = found ? 0 : 1;
+					ack->list.Add(status);
+				}
+				buffer = BSON::Bson::Serialize(ack, bufferSize);
+				if (buffer.get()!=NULL && bufferSize>0)
+						tcp.SendData(CommandInventory, buffer.get(), bufferSize);
+				break;
+			case CommandTimeout:
+				BSON::Bson::Deserialize(stream, request);
+				if (request.get()==NULL)
+					break;
+				for (i = 0; i< request->list.Count(); ++i)
+				{
+					cardIdString = request->list[i];
+					//Green LED on on same side
+					manager.SetLEDState(cardIdString, IndicatorColor::Green, 
+																				IndicatorState::LightOn);
+					//Remove memory but keep LED shown no matter this basket on or off
+					manager.RemoveLEDState(cardIdString, true);
 				}
 				break;
+			case CommandIndicatorTest:
+				BSON::Bson::Deserialize(stream, test);
+				if (test.get()==NULL)
+					break;
+				unitList = manager.GetList();
+				for(it = unitList.begin(); it!=unitList.end(); ++it)
+				{
+					if (test->test == 0)
+						it->second->IndicatorOff();
+					else if (test->test == 1)
+						it->second->SetIndicator(IndicatorDirection::Both, IndicatorColor::Green, IndicatorState::LightOn);
+					else if (test->test == 2)
+						it->second->SetIndicator(IndicatorDirection::Both, IndicatorColor::Red, IndicatorState::LightOn);
+				}
 			default:
 				break;
 		}
