@@ -5,11 +5,44 @@ using namespace std;
 
 const std::uint8_t ConfigComm::dataHeader[3] = {0xfe, 0xfc, 0xfd};
 
+ConfigComm *ConfigComm::comm;
+
+extern "C"
+{
+	void ConfigComm::UARTCallback(uint32_t event)
+	{
+		bool needUpdate = false;
+		switch (event)    
+		{    
+			case ARM_USART_EVENT_RECEIVE_COMPLETE:
+			case ARM_USART_EVENT_TRANSFER_COMPLETE:
+				if (!comm->uart.GetStatus().rx_busy)
+					needUpdate = true;
+				break;
+			case ARM_USART_EVENT_SEND_COMPLETE:    
+			case ARM_USART_EVENT_TX_COMPLETE:      
+				break;     
+			case ARM_USART_EVENT_RX_TIMEOUT:         
+				break;     
+			case ARM_USART_EVENT_RX_OVERFLOW:    
+			case ARM_USART_EVENT_TX_UNDERFLOW:        
+				break;    
+		}
+		
+		if (needUpdate)
+		{
+			++comm->readRound;
+			comm->tail = 0;
+			comm->uart.Receive(comm->buffer, CONFIG_BUF_SIZE);
+		}
+	}
+}
 
 ConfigComm::ConfigComm(ARM_DRIVER_USART &u)
 	:uart(u)
 {
-	uart.Initialize(NULL);
+	comm = this;
+	uart.Initialize(UARTCallback);
 	uart.PowerControl(ARM_POWER_FULL);
 	uart.Control(ARM_USART_MODE_ASYNCHRONOUS |
 							 ARM_USART_DATA_BITS_8 |
@@ -21,6 +54,7 @@ ConfigComm::ConfigComm(ARM_DRIVER_USART &u)
 ConfigComm::~ConfigComm()
 {
 	Stop();
+	uart.Uninitialize();
 }
 
 inline void ConfigComm::Start()
@@ -29,60 +63,48 @@ inline void ConfigComm::Start()
 	uart.Control(ARM_USART_CONTROL_RX, 1);
 	dataState = StateDelimiter1;
 	command = 0; 
-	base = 0;
-	dataOffset = data;
+	head = tail = 0;
+	readRound = 0;
+	processRound = 0;
+	uart.Receive(buffer, CONFIG_BUF_SIZE);
 }
 	
 inline void ConfigComm::Stop()
 {
 	uart.Control(ARM_USART_CONTROL_TX, 0);
 	uart.Control(ARM_USART_CONTROL_RX, 0);
+	uart.Control(ARM_USART_ABORT_TRANSFER, 0);
 }
 
 void ConfigComm::DataReceiver()
 {
-//	static uint8_t dataState = 0;
-//	static uint8_t command = 0; 
-//	static uint8_t parameterLen;
-//  static uint8_t parameterIndex;
-//	static boost::shared_ptr<uint8_t[]> parameters;
-//	
-//	static uint32_t base = 0;
-//	static uint8_t *dataOffset = data;
+	if (!uart.GetStatus().rx_busy)
+		return;
 	
-	ARM_USART_STATUS status = uart.GetStatus();
-	if (!status.rx_busy)
-	{
-		uart.Receive(data, 0x400);
-		dataOffset = data;
-		base = 0;
-	}
+	tail = uart.GetRxCount();
+	if (tail==CONFIG_BUF_SIZE)		//wait for next read to avoid misjudgment
+		return;
 	
-	uint32_t num = uart.GetRxCount() - base;
-	if (num == 0)
-		return;	
-	base+=num;
-
-	for(int i=0; i<num; ++i)
+	while (tail!=head)
 	{
 		switch (dataState)
 		{
 			case StateDelimiter1:
-				if (dataOffset[i]==dataHeader[0])
+				if (buffer[head]==dataHeader[0])
 					dataState = StateDelimiter2;
 				break;
 			case StateDelimiter2:
-				if (dataOffset[i] == dataHeader[1])
+				if (buffer[head] == dataHeader[1])
 					dataState = StateCommand;
 				else
 					dataState = StateDelimiter1;
 				break;
 			case StateCommand:
-				command = dataOffset[i];
+				command = buffer[head];
 				dataState = StateParameterLength;
 				break;
 			case StateParameterLength:
-				parameterLen = dataOffset[i];
+				parameterLen = buffer[head];
 				if (parameterLen == 0)
 				{
 					parameters.reset();
@@ -98,26 +120,24 @@ void ConfigComm::DataReceiver()
 				}
 				break;
 			case StateParameters:
-				parameters[parameterIndex++] = dataOffset[i];
+				parameters[parameterIndex++] = buffer[head];
 				if (parameterIndex >= parameterLen)
 				{
 					if (OnCommandArrivalEvent)
 						OnCommandArrivalEvent(command,parameters.get(),parameterLen);
 					parameters.reset();
 					dataState = StateDelimiter1;
-//					uart.Control(ARM_USART_ABORT_RECEIVE,  0);
-//					uart.Control(ARM_USART_CONTROL_RX, 1);
-//					uart.Receive(data, 0x200);
-//					dataOffset = data;
-//					base = 0;
-//					return;
 				}
 				break;
 			default:
 				break;
 		}
+		if (++head>=CONFIG_BUF_SIZE)
+		{
+			++processRound;
+			head=0;
+		}
 	}
-	dataOffset+=num;
 }
 
 bool ConfigComm::SendData(const uint8_t *data, size_t len)
