@@ -39,7 +39,7 @@ namespace IntelliShelf
 	{
 		protected:
 			boost::shared_ptr<CANExtended::OdEntry> EntryBuffer;
-			bool busy;
+			volatile bool busy;
 			void ReadAttribute(std::uint16_t attr);
       void WriteAttribute(std::uint16_t attr, const boost::shared_ptr<std::uint8_t[]> &,std::size_t size);
 		private:

@@ -44,27 +44,29 @@ namespace IntelliShelf
 		std::map<std::uint16_t, boost::shared_ptr<ShelfUnit> > unitList = manager.GetList();
 		for (UnitManager::UnitIterator it = unitList.begin(); it!= unitList.end(); ++it)
 		{
+			it->second->WaitProcessing(); //Sync data
+			string cardId = it->second->GetCardId();
 			switch (it->second->GetCardState())
 			{
 				case ShelfUnit::CardArrival:
 					if (it->second->CardChanged())
 					{
 #ifdef DEBUG_PRINT
-						cout<<"Node "<<(it->second->DeviceId & 0xff)<<" Card Arrival"<<endl;
+						cout<<"Node "<<(it->second->DeviceId & 0xff)<<" Card ID "<<cardId<<" Arrival"<<endl;
 #endif
-						if (manager.GetLEDState(it->second->GetCardId(), led))
+						if (manager.GetLEDState(cardId, led))
 							it->second->SetIndicator(led);
 						else
 						{
 							if (!needReport)
-								SendRequest(it->second);
+								SendRequest(it->second, cardId);
 							it->second->SetIndicator(IndicatorDirection::Both, IndicatorColor::Red, IndicatorState::LightOn);
 						}
 						it->second->UpdateCard();
 					}
 					if (needReport)
 					{
-						SendRequest(it->second);
+						SendRequest(it->second, cardId);
 					}
 					break;
 				case ShelfUnit::CardLeft:
@@ -85,7 +87,7 @@ namespace IntelliShelf
 			needReport = false;
 	}
 	
-	void NetworkEngine::SendRequest(boost::shared_ptr<ShelfUnit> unit)
+	void NetworkEngine::SendRequest(boost::shared_ptr<ShelfUnit> unit, const std::string &cardId)
 	{
 		if (!tcp.IsConnected())
 			return;
@@ -93,7 +95,7 @@ namespace IntelliShelf
 			return;
 		size_t bufferSize = 0;
 		boost::shared_ptr<Basket> basket(new Basket);
-		basket->RFID = unit->GetCardId();
+		basket->RFID = cardId;
 #ifdef DEBUG_PRINT
 		cout<<"Node "<<(unit->DeviceId & 0xff)<<" New card ID: "+basket->RFID<<endl;
 #endif
@@ -195,6 +197,7 @@ namespace IntelliShelf
 					manager.ClearLEDState(status->RFID);
 				else
 				{
+					manager.RemoveLEDState(status->RFID, false);
 					//Show warning or fail signal
 					unit = manager.FindUnit(status->RFID);
 					if (unit.get()!=NULL)

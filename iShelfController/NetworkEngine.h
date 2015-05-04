@@ -22,7 +22,7 @@ namespace IntelliShelf
 			NetworkEngine(const std::uint8_t *endpoint, UnitManager &um);
 			~NetworkEngine() {}
 			void SendHeartBeat();
-			void SendRequest(boost::shared_ptr<ShelfUnit> unit);
+			void SendRequest(boost::shared_ptr<ShelfUnit> unit, const std::string &cardId);
 			void InventoryRfid();
 			void Process();
 			void Connection();
