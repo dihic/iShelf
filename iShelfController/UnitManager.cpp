@@ -4,14 +4,14 @@ using namespace std;
 
 namespace IntelliShelf
 {
-	boost::shared_ptr<ShelfUnit> UnitManager::FindUnit(std::string cardId)
+	boost::shared_ptr<ShelfUnit> UnitManager::FindUnit(const std::string &cardId)
 	{
 		boost::shared_ptr<ShelfUnit> unit;
 		for (UnitIterator it = unitList.begin(); it != unitList.end(); ++it)
 		{
 			if (it->second->IsEmpty())
 				continue;
-			if (cardId.compare(it->second->GetCardId()) == 0)
+			if (cardId == it->second->GetCardId())
 			{
 				unit = it->second;
 				break;
@@ -34,7 +34,7 @@ namespace IntelliShelf
 		unitList[id] = unit; 
 	}
 	
-	bool UnitManager::SetLEDState(std::string cardId, std::uint8_t dir, std::uint8_t color, std::uint8_t status)
+	bool UnitManager::SetLEDState(const std::string &cardId, std::uint8_t dir, std::uint8_t color, std::uint8_t status)
 	{
 		boost::shared_ptr<ShelfUnit> unit = FindUnit(cardId);
 		if (unit.get() == NULL)
@@ -54,7 +54,7 @@ namespace IntelliShelf
 		return true;
 	}
 	
-	bool UnitManager::SetLEDState(std::string cardId, std::uint8_t color, std::uint8_t status)
+	bool UnitManager::SetLEDState(const std::string &cardId, std::uint8_t color, std::uint8_t status)
 	{
 		boost::shared_ptr<ShelfUnit> unit = FindUnit(cardId);
 		if (unit.get() == NULL)
@@ -68,7 +68,7 @@ namespace IntelliShelf
 		return true;
 	}
 	
-	bool UnitManager::ClearLEDState(std::string cardId)
+	bool UnitManager::ClearLEDState(const std::string &cardId)
 	{
 		boost::shared_ptr<ShelfUnit> unit = FindUnit(cardId);
 		if (unit.get() == NULL)
@@ -88,7 +88,7 @@ namespace IntelliShelf
 		return true;
 	}
 	
-	bool UnitManager::RemoveLEDState(std::string cardId, bool keepShown)
+	bool UnitManager::RemoveLEDState(const std::string &cardId, bool keepShown)
 	{
 		cardList.erase(cardId);
 		if (keepShown)
@@ -100,7 +100,7 @@ namespace IntelliShelf
 		return true;
 	}
 	
-	bool UnitManager::GetLEDState(std::string cardId, std::uint8_t &data)
+	bool UnitManager::GetLEDState(const std::string &cardId, std::uint8_t &data)
 	{
 		CardIterator it = cardList.find(cardId);
 		if (it == cardList.end())
