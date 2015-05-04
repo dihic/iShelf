@@ -62,11 +62,12 @@ namespace IntelliShelf
 	class ShelfUnit : public CanDevice
 	{
 		private:
-			static string GenerateId(const uint8_t *id, size_t len);
+			static void GenerateId(const uint8_t *id, size_t len, string &result);
 			uint8_t lastCardType;
 			volatile bool cardChanged;
 			volatile std::uint8_t cardState;
 			volatile std::uint8_t ledState;
+			volatile bool processing;
 			std::string cardId;
 			std::string presId;
 		public:
@@ -76,7 +77,12 @@ namespace IntelliShelf
 			ShelfUnit(CANExtended::CanEx &ex, std::uint16_t id);
 			virtual ~ShelfUnit() {}
 			
-			std::uint8_t GetIndicator() const { return ledState;}
+			void WaitProcessing() const 
+			{ 
+				while (processing)
+					__nop(); 
+			}
+			std::uint8_t GetIndicator() const { return ledState; }
 			void SetIndicator(std::uint8_t data);
 			void SetIndicator(std::uint8_t dir, std::uint8_t color, std::uint8_t status);
 			void IndicatorOff();
@@ -87,13 +93,13 @@ namespace IntelliShelf
 			}
 			
 			bool CardChanged() const { return cardChanged; }
-			bool IsEmpty() const { return (cardState == CardLeft) || presId.empty(); }
+			bool IsEmpty() const { return cardState == CardLeft; }
 			
 			void UpdateCard();
 			
 			uint8_t GetCardState() const { return cardState; }
-			std::string &GetPresId() { return presId; }
-			std::string &GetCardId() { return cardId; }
+			const std::string &GetPresId() { return presId; }
+			const std::string &GetCardId() { return cardId; }
 			
 			void RequestData()
 			{

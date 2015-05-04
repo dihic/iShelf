@@ -9,7 +9,7 @@ namespace IntelliShelf
 {
 
 	ShelfUnit::ShelfUnit(CANExtended::CanEx &ex, uint16_t id)
-		:	CanDevice(ex, id), lastCardType(0), cardChanged(false)
+		:	CanDevice(ex, id), lastCardType(0), cardChanged(false), processing(false)
 	{
 		cardState = 0;
 		cardId.clear();
@@ -26,10 +26,10 @@ namespace IntelliShelf
 		}
 	}
 	
-	string ShelfUnit::GenerateId(const uint8_t *id, size_t len)
+	void ShelfUnit::GenerateId(const uint8_t *id, size_t len, string &result)
 	{
-		string result;
 		char temp;
+		result.clear();
 		for(int i=len-1;i>=0;--i)
 		{
 			temp = (id[i] & 0xf0) >>4;
@@ -39,7 +39,6 @@ namespace IntelliShelf
 			temp += (temp>9 ? 55 : 48);
 			result+=temp;
 		}
-		return result;
 	}
 	
 	void ShelfUnit::SetIndicator(std::uint8_t data)
@@ -47,6 +46,9 @@ namespace IntelliShelf
 		ledState = data;
 		boost::shared_ptr<std::uint8_t[]> buf = boost::make_shared<std::uint8_t[]>(1);
 		buf[0] = data;
+		//Wait for last command completed
+		while(IsBusy())
+			__nop();
 		WriteAttribute(DeviceAttribute::Indicator, buf, 1); 
 	}
 
@@ -76,9 +78,10 @@ namespace IntelliShelf
 		std::uint8_t *rawData = entry->GetVal().get();
 		string id;
 		if (rawData[0]!=0)
-			id = GenerateId(rawData+1, 8);	//Generate temporary rfid id when got one
+			GenerateId(rawData+1, 8, id);	//Generate temporary rfid id when got one
 		if (lastCardType==rawData[0] && cardId==id) //identical
 			return;
+		processing = true;
 		lastCardType = rawData[0];
 		switch (rawData[0])
 		{
@@ -100,6 +103,7 @@ namespace IntelliShelf
 				break;
 		}
 		cardChanged = true;
+		processing = false;
 	}
 }
 
