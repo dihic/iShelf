@@ -46,6 +46,7 @@ static uint8_t UIDlast[8];
 static uint8_t cardData[32] = {0x44, 0x49, 0x48 ,0x4D}; // "DIHM"
 
 volatile bool syncTriggered = false;
+volatile bool responseTriggered = false;
 volatile CAN_ODENTRY syncEntry;
 
 volatile bool Connected = true;
@@ -228,7 +229,7 @@ struct CanResponse
 	uint8_t result;
 };
 
-CanResponse res;
+volatile CanResponse res;
 
 extern "C"
 {
@@ -287,12 +288,12 @@ extern "C"
 	
 	void CanexReceived(uint16_t sourceId, CAN_ODENTRY *entry)
 	{
-		CAN_ODENTRY *response=&(res.response);
+		CAN_ODENTRY *response=const_cast<CAN_ODENTRY *>(&(res.response));
 
 		res.sourceId = sourceId;
 		res.result=0xff;
 		
-		response->val  = &(res.result);
+		response->val = const_cast<uint8_t *>(&(res.result));
 		response->index = entry->index;
 		response->subindex = entry->subindex;
 		response->entrytype_len = 1;
@@ -311,7 +312,8 @@ extern "C"
 			default:
 				break;
 		}
-		CANEXResponse(sourceId, response);
+//		CANEXResponse(sourceId, response);
+		responseTriggered = true;
 	}
 
 	void CanexSyncTrigger(uint16_t index, uint8_t mode)
@@ -453,10 +455,16 @@ int main()
 		if (VcnlConnected)
 			UpdateIndicator();
 		
+		if (responseTriggered)
+		{
+			CANEXResponse(res.sourceId, const_cast<CAN_ODENTRY *>(&(res.response)));
+			responseTriggered = false;
+		}
+		
 		if (syncTriggered)
 		{
-			syncTriggered = false;
 			CANEXBroadcast(const_cast<CAN_ODENTRY *>(&syncEntry));
+			syncTriggered = false;
 		}
 	}
 }
