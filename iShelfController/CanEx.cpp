@@ -131,16 +131,12 @@ namespace CANExtended
 			return;
     uint16_t sourceId = (msgReceived.id >> 12) & 0xfff;
 		
-		
     uint32_t command = msgReceived.id & 0x7000000;
     bool isExt = ((msgReceived.id & Command::Extended) != 0);
 		
 		boost::shared_ptr<OdEntry> rxEntry;
 		uint8_t *rxData;
 		uint8_t rxLen;
-		
-		if (sourceId==0x121 && msgReceived.len<8)
-			sourceId &= 0xfff;
 		
 		std::map<std::uint16_t, RxStruct>::iterator it;
 		
