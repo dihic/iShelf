@@ -181,7 +181,7 @@ bool UpdateRfid()
 				do
 				{
 					suc = Iso15693ReadMultipleBlockWithAddress(1, 27, UID, (uint8_t *)MemBuffer+INDEX_DATA);
-					if (suc)
+					if (suc == 0)
 						GetPresId();
 					else
 						DELAY(1000);
@@ -449,7 +449,10 @@ int main()
 			RfidTimeup = false;
 			bool updated = UpdateRfid();
 			if (Registered && (updated || ForceSync))
+			{
+				ForceSync = false;
 				Gotcha = false;
+			}
 		}
 		
 		if (VcnlConnected)
@@ -468,4 +471,3 @@ int main()
 		}
 	}
 }
-
