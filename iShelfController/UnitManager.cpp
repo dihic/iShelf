@@ -70,9 +70,7 @@ namespace IntelliShelf
 	
 	bool UnitManager::ClearLEDState(const std::string &cardId)
 	{
-		boost::shared_ptr<ShelfUnit> unit = FindUnit(cardId);
-		if (unit.get() == NULL)
-			return false;
+		//Set clear state in cardList for this card ID
 		boost::shared_ptr<CardListItem> item;
 		CardIterator it = cardList.find(cardId);
 		if (it == cardList.end())
@@ -82,9 +80,14 @@ namespace IntelliShelf
 		}
 		else
 			item = it->second;
-		unit->IndicatorOff();
 		item->Direction = IndicatorDirection::NA;
 		item->IndicatorData = 0;
+		
+		//Find unit and turn off indicator
+		boost::shared_ptr<ShelfUnit> unit = FindUnit(cardId);
+		if (unit.get() == NULL)
+			return false;
+		unit->IndicatorOff();
 		return true;
 	}
 	
