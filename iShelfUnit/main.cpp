@@ -26,7 +26,7 @@ using namespace std;
 
 #define MEM_BUFSIZE 0x200
 
-#define RFID_TIME_COUNT    	5
+#define RFID_TIME_COUNT    	3
 #define RFID_TIME_INTERVAL 	100
 #define LED_INTERVAL 				500
 
