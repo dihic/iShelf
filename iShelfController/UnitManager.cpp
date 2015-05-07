@@ -4,6 +4,21 @@ using namespace std;
 
 namespace IntelliShelf
 {
+	void UnitManager::UpdateLatest(boost::shared_ptr<ShelfUnit> &unit)
+	{
+		string cardId = unit->GetCardId();
+		for (UnitIterator it = unitList.begin(); it != unitList.end(); ++it)
+		{
+			if (it->second->IsEmpty() || it->second==unit)
+				continue;
+			if (it->second->IsLatest() && cardId == it->second->GetCardId())
+			{
+				it->second->latest = false;
+				it->second->IndicatorOff();
+			}
+		}
+	}
+	
 	boost::shared_ptr<ShelfUnit> UnitManager::FindUnit(const std::string &cardId)
 	{
 		boost::shared_ptr<ShelfUnit> unit;
@@ -11,7 +26,7 @@ namespace IntelliShelf
 		{
 			if (it->second->IsEmpty())
 				continue;
-			if (cardId == it->second->GetCardId())
+			if (it->second->IsLatest() && cardId == it->second->GetCardId())
 			{
 				unit = it->second;
 				break;

@@ -37,6 +37,7 @@ namespace IntelliShelf
 			void Add(std::uint16_t id, boost::shared_ptr<ShelfUnit> unit);
 			std::map<std::uint16_t, boost::shared_ptr<ShelfUnit> > &GetList() { return unitList; }
 			
+			void UpdateLatest(boost::shared_ptr<ShelfUnit> &unit);
 			boost::shared_ptr<ShelfUnit> FindUnit(const std::string &cardId);
 			boost::shared_ptr<ShelfUnit> FindUnit(std::uint16_t id);
 			

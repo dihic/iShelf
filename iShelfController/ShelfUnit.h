@@ -59,8 +59,11 @@ namespace IntelliShelf
 		static const std::uint16_t Indicator 			= 0x8002;   //W
 	};
 	
+	class UnitManager;
+	
 	class ShelfUnit : public CanDevice
 	{
+		friend class UnitManager;
 		private:
 			static void GenerateId(const uint8_t *id, size_t len, string &result);
 			uint8_t lastCardType;
@@ -70,9 +73,11 @@ namespace IntelliShelf
 			volatile bool processing;
 			std::string cardId;
 			std::string presId;
+			volatile bool latest;
 		public:
 			static const std::uint8_t CardArrival = 0x80;
 			static const std::uint8_t CardLeft    = 0x81;
+	
 		
 			ShelfUnit(CANExtended::CanEx &ex, std::uint16_t id);
 			virtual ~ShelfUnit() {}
@@ -97,6 +102,7 @@ namespace IntelliShelf
 			
 			void UpdateCard();
 			
+			bool IsLatest() const { return latest; }
 			uint8_t GetCardState() const { return cardState; }
 			const std::string &GetPresId() { return presId; }
 			const std::string &GetCardId() { return cardId; }

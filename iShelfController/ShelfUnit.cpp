@@ -87,14 +87,17 @@ namespace IntelliShelf
 		{
 			case 0:
 				cardState = CardLeft;
+				latest = false;
 				break;
 			case 1:
 				cardState = CardArrival;
+				latest = true;
 				cardId = id;
 				presId.clear();
 				break;
 			case 2:
 				cardState = CardArrival;
+				latest = true;
 				cardId = id;
 				presId.clear();
 				presId.append(reinterpret_cast<char *>(rawData+10), rawData[9]);

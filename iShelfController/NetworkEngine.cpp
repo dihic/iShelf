@@ -54,6 +54,8 @@ namespace IntelliShelf
 #ifdef DEBUG_PRINT
 						cout<<"Node "<<(it->second->DeviceId & 0xff)<<" Card ID "<<cardId<<" Arrival"<<endl;
 #endif
+						//Update this unit as latest and other as old no in time
+						manager.UpdateLatest(it->second);
 						if (manager.GetLEDState(cardId, led))
 							it->second->SetIndicator(led);
 						else
