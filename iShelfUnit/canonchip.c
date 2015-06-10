@@ -33,7 +33,7 @@ ReceiverEventHandler CANEXReceiverEvent = NULL;
 TriggerSyncEventHandler CANTEXTriggerSyncEvent = NULL;
 
 volatile uint16_t NodeId = 0x0FFF;
-uint16_t HeartbeatInterval = 200;
+uint16_t HeartbeatInterval = 250;
 uint16_t SyncInterval = 10;
 
 uint32_t ClkInitTable[2];

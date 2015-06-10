@@ -26,8 +26,8 @@ using namespace std;
 
 #define MEM_BUFSIZE 0x200
 
-#define RFID_TIME_COUNT    	3
-#define RFID_TIME_INTERVAL 	100
+#define RFID_TIME_COUNT    	5
+#define RFID_TIME_INTERVAL 	125
 #define LED_INTERVAL 				500
 
 __align(16) uint8_t MemBuffer[MEM_BUFSIZE];
@@ -338,11 +338,12 @@ extern "C"
 				break;
 		}
 	}
-
+	
+	volatile uint32_t hbCounter = 0;
 
 	void TIMER32_0_IRQHandler()
 	{
-		static uint32_t counter1 = 0;
+		
 		static uint32_t counter2 = 0;
 		static uint32_t counter3 = 0;
 		
@@ -365,17 +366,25 @@ extern "C"
 				LedUpdate();
 			}
 		
-			if (counter1++>=HeartbeatInterval)
-			{
-				counter1=0;
 				if (Connected)
 				{
 					if (Registered && !Gotcha)
-						syncTriggered = true;
+					{
+						if (hbCounter++>=HeartbeatInterval)
+						{
+							hbCounter = 0;
+							syncTriggered = true;
+						}
+					}
 				}
 				else
-					CANEXHeartbeat(STATE_OPERATIONAL);
-			}
+				{
+					if (hbCounter++>=HeartbeatInterval)
+					{
+						hbCounter = 0;
+						CANEXHeartbeat(STATE_OPERATIONAL);
+					}
+				}
 		}
 	}
 	
@@ -452,6 +461,7 @@ int main()
 			{
 				ForceSync = false;
 				Gotcha = false;
+				hbCounter = HeartbeatInterval;	//Send at once
 			}
 		}
 		
