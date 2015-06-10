@@ -43,7 +43,7 @@ extern uint8_t UID[8];
 
 static uint8_t UIDlast[8];
 
-static uint8_t cardData[32] = {0x44, 0x49, 0x48 ,0x4D}; // "DIHM"
+//static uint8_t cardData[32] = {0x44, 0x49, 0x48 ,0x4D}; // "DIHM"
 
 volatile bool syncTriggered = false;
 volatile bool responseTriggered = false;
@@ -153,8 +153,8 @@ bool UpdateRfid()
 	static uint32_t lostCount = 0;
 	
 	bool result = false;
-	uint8_t suc = 0;
-	uint8_t failCount;
+	//uint8_t suc = 0;
+	//uint8_t failCount;
 	
 	Trf796xTurnRfOn();
 	DELAY(2000);
@@ -166,41 +166,42 @@ bool UpdateRfid()
 			result = true;
 			memcpy(UIDlast, UID, 8);
 			memcpy(MemBuffer+1, UID, 8);
+			MemBuffer[0] = 1;
 
-			failCount = 0;
-			do
-			{
-				suc=Iso15693ReadSingleBlockWithAddress(0, UID, cardData+4);
-				DELAY(1000);
-			} while (suc && ++failCount<10);
-			
-			if (memcmp(cardData+4, cardData, 4)==0)
-			{
-				MemBuffer[0]= 0x02;
-				failCount = 0;
-				do
-				{
-					suc = Iso15693ReadMultipleBlockWithAddress(1, 27, UID, (uint8_t *)MemBuffer+INDEX_DATA);
-					if (suc == 0)
-						GetPresId();
-					else
-						DELAY(1000);
-				} while (suc && ++failCount<10);
-			}
-			else
-			{
-				syncEntry.entrytype_len = 9;
-				if (failCount>=10)
-				{
-					memset(MemBuffer, 0, 9);
-					memset(UIDlast, 0, 8);
-				}
-				else
-				{
-					MemBuffer[0] = 1;
-					memcpy(MemBuffer+1, UID, 8);
-				}
-			}
+//			failCount = 0;
+//			do
+//			{
+//				suc=Iso15693ReadSingleBlockWithAddress(0, UID, cardData+4);
+//				DELAY(1000);
+//			} while (suc && ++failCount<10);
+//			
+//			if (memcmp(cardData+4, cardData, 4)==0)
+//			{
+//				MemBuffer[0]= 0x02;
+//				failCount = 0;
+//				do
+//				{
+//					suc = Iso15693ReadMultipleBlockWithAddress(1, 27, UID, (uint8_t *)MemBuffer+INDEX_DATA);
+//					if (suc == 0)
+//						GetPresId();
+//					else
+//						DELAY(1000);
+//				} while (suc && ++failCount<10);
+//			}
+//			else
+//			{
+//				syncEntry.entrytype_len = 9;
+//				if (failCount>=10)
+//				{
+//					memset(MemBuffer, 0, 9);
+//					memset(UIDlast, 0, 8);
+//				}
+//				else
+//				{
+//					MemBuffer[0] = 1;
+//					memcpy(MemBuffer+1, UID, 8);
+//				}
+//			}
 		}
 	}
 	else
