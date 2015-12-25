@@ -1,4 +1,5 @@
 #include "CanDevice.h"
+#include <iostream>
 
 #define SYNC_TIME 500
 
@@ -55,10 +56,10 @@ namespace IntelliShelf
 			result = osSignalWait(0xff, SYNC_TIME);
 			--tryCount;
 		} while (result.status == osEventTimeout && tryCount>0); // Wait for response
-		
+#ifdef DEBUG_PRINT
 		if (tryCount==0)
 			cout<<"CAN Timeout!"<<endl;
-		
+#endif
 		if (result.status == osEventSignal)
 			osSignalClear(threadid, 0xff);
 		

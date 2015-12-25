@@ -3,6 +3,7 @@
 #include "Bson.h"
 #include <ctime>
 #include <cstring>
+#include <iostream>
 
 using namespace std;
 

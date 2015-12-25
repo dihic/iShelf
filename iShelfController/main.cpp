@@ -105,9 +105,9 @@ int main()
 	HAL_Init();		/* Initialize the HAL Library    */
 	
 	CommStructures::Register();
-	
+#ifdef DEBUG_PRINT
 	cout<<"Started..."<<endl;
-	
+#endif
 	//Initialize F-Ram and config UART
 	osDelay(100);	//Wait for voltage stable
 	fram = FRAM::CreateInstance(Driver_SPI2);

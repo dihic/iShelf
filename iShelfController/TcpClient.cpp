@@ -1,6 +1,7 @@
 #include "TcpClient.h"
 #include <cstring>
 #include <Driver_ETH_PHY.h>
+#include <iostream>
 
 #define TCP_SEGMENT_SIZE   1460
 
